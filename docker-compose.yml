@@ -1,0 +1,12 @@
+services:
+  reminder:
+    build: .
+    container_name: discord-reminder-user-app
+    # Load secrets from your local .env file
+    env_file: .env
+    environment:
+      - DATABASE_URL=file:/data/reminders.db
+      - DEFAULT_TZ=UTC
+    volumes:
+      - ./data:/data
+    restart: unless-stopped

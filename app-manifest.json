@@ -1,0 +1,20 @@
+{
+  "name": "Remind Me (User App)",
+  "integration_types": [
+    0,
+    1
+  ],
+  "contexts": [
+    0,
+    1,
+    2
+  ],
+  "install_params": {
+    "scopes": [
+      "applications.commands"
+    ],
+    "permissions": "0"
+  },
+  "description": "Set reminders anywhere in Discord - DMs, servers, threads, and voice channels.",
+  "version": "1.3.0"
+}
