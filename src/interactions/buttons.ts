@@ -1,5 +1,7 @@
-import { ButtonInteraction, ModalBuilder, TextInputBuilder, ActionRowBuilder, TextInputStyle } from 'discord.js';
-import { insertReminder } from '../db.js';
+import { ActionRowBuilder, ButtonInteraction, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
+import { DateTime } from 'luxon';
+import { insertReminder, rescheduleReminder } from '../db.js';
+import { resolveUserTz } from '../time.js';
 
 export async function handlePresetButton(i: ButtonInteraction, seconds: number) {
   const target = i.message?.embeds?.[0];
@@ -29,4 +31,15 @@ export async function openCustomModal(i: ButtonInteraction) {
     .setRequired(true);
   modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(whenInput));
   await i.showModal(modal);
+}
+
+export async function handleSnoozeButton(i: ButtonInteraction, reminderId: number, seconds: number) {
+  const tz = resolveUserTz(i.user.id);
+  const newEpoch = Math.floor(DateTime.now().setZone(tz).plus({ seconds }).toSeconds());
+  rescheduleReminder(reminderId, newEpoch);
+  await i.update({
+    content: `⏰ Snoozed to <t:${newEpoch}:F> (<t:${newEpoch}:R>)`,
+    components: [],
+    embeds: i.message.embeds,
+  });
 }
