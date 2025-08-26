@@ -1,5 +1,5 @@
-import { Client, EmbedBuilder } from 'discord.js';
-import { getDueReminders, claimReminder, markReminderStatus, deleteReminder } from './db.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, EmbedBuilder } from 'discord.js';
+import { getDueReminders, claimReminder, markReminderStatus } from './db.js';
 
 export function startScheduler(client: Client) {
   setInterval(async () => {
@@ -15,10 +15,22 @@ export function startScheduler(client: Client) {
           .setFooter({ text: `Reminder #${r.id}` });
         if (r.message_link) embed.addFields({ name: 'Jump', value: `[Open original message](${r.message_link})` });
         const dm = await user.createDM();
-        await dm.send({ embeds: [embed] });
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`reminder_snooze:${r.id}:3600`)
+            .setLabel('Snooze 1h')
+            .setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder()
+            .setCustomId(`reminder_snooze:${r.id}:86400`)
+            .setLabel('Snooze 1d')
+            .setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder()
+            .setCustomId(`reminder_snooze:${r.id}:604800`)
+            .setLabel('Snooze 1w')
+            .setStyle(ButtonStyle.Secondary)
+        );
+        await dm.send({ embeds: [embed], components: [row] });
         markReminderStatus(r.id, 'sent');
-        // Delete the reminder after successful delivery
-        deleteReminder(r.id);
       } catch (err) {
         console.error('Failed to deliver reminder', r.id, err);
         const errorMessage = err instanceof Error ? err.message : String(err);

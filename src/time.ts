@@ -20,28 +20,13 @@ export function parseWhen(input: string, userId: string): { epoch: number; displ
     useForwardDate = false;
   }
   
-  // Create reference date in user's local time
-  const refDate = new Date(now.year, now.month - 1, now.day, now.hour, now.minute, now.second);
-  
-  // Parse with appropriate forward date setting
-  const parsed = chrono.parse(input, refDate, { forwardDate: useForwardDate });
+  // Use chrono-node with explicit timezone offset to parse text
+  const ref = { instant: now.toJSDate(), timezone: now.offset };
+  const parsed = chrono.parse(input, ref, { forwardDate: useForwardDate });
   if (!parsed?.length) return null;
-  
+
   const result = parsed[0];
-  const parsedDate = result.date();
-  
-  // Extract components
-  const year = parsedDate.getFullYear();
-  const month = parsedDate.getMonth() + 1;
-  const day = parsedDate.getDate();
-  const hour = parsedDate.getHours();
-  const minute = parsedDate.getMinutes();
-  const second = parsedDate.getSeconds();
-  
-  // Create target time in user's timezone
-  let targetTime = DateTime.fromObject({
-    year, month, day, hour, minute, second
-  }, { zone: tz });
+  let targetTime = DateTime.fromJSDate(result.date(), { zone: tz });
   
   // If we parsed "today" but got a past time, and forwardDate was disabled,
   // check if we should move it to tomorrow
