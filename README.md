@@ -10,8 +10,15 @@ A TypeScript/Node.js Discord app that works in **any Discord context**: DMs, ser
    (Optional) Add:
    ```env
    DEFAULT_TZ=America/Los_Angeles
+   SHARD_COUNT=auto
    DATABASE_URL=file:/data/reminders.db
+   SCHEDULER_INTERVAL_MS=20000
+   SCHEDULER_BATCH_SIZE=50
+   MONITOR_PORT=3000
    ```
+   Sharding is enabled; set `SHARD_COUNT` if you need a specific number of shards (default `auto`).
+   Adjust `SCHEDULER_INTERVAL_MS` and `SCHEDULER_BATCH_SIZE` to tune reminder throughput.
+   `MONITOR_PORT` controls the web interface used to monitor shard status.
 
 2) Build the image:
    ```bash
@@ -28,7 +35,9 @@ A TypeScript/Node.js Discord app that works in **any Discord context**: DMs, ser
    docker compose up -d
    ```
 
-5) Use the app anywhere in Discord:
+5) Visit `http://localhost:3000` (or your chosen `MONITOR_PORT`) to view shard status.
+
+6) Use the app anywhere in Discord:
    - **In DMs**: `/remind when:"in 1h" note:"ping me"`
    - **In server channels**: `/remind when:"tomorrow 9am" link:"https://discord.com/channels/..."`
    - **In threads**: Right-click a message → Apps → "Remind me"

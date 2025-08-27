@@ -81,10 +81,12 @@ export function insertReminder(data: Omit<Reminder, 'id' | 'created_at' | 'statu
   return info.lastInsertRowid as number;
 }
 
-export function getDueReminders(nowEpoch: number): Reminder[] {
-  const rows = db.prepare(
-    `SELECT * FROM reminders WHERE status = 'scheduled' AND due_at <= ? ORDER BY due_at ASC LIMIT 50`
-  ).all(nowEpoch);
+export function getDueReminders(nowEpoch: number, limit: number): Reminder[] {
+  const rows = db
+    .prepare(
+      `SELECT * FROM reminders WHERE status = 'scheduled' AND due_at <= ? ORDER BY due_at ASC LIMIT ?`
+    )
+    .all(nowEpoch, limit);
   return rows as Reminder[];
 }
 
