@@ -18,4 +18,5 @@ RUN mkdir -p /data
 VOLUME ["/data"]
 ENV DATABASE_URL="file:/data/reminders.db"
 ENV DEFAULT_TZ="UTC"
+EXPOSE 3000
 CMD ["npm","start"]

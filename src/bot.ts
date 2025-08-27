@@ -18,11 +18,15 @@ const client = new Client({
 });
 
 client.once(Events.ClientReady, () => {
-  console.log(`Ready as ${client.user?.tag}`);
+  const shardInfo = client.shard ? `shard ${client.shard.ids.join(',')}` : 'single shard';
+  console.log(`Ready as ${client.user?.tag} (${shardInfo})`);
   client.user?.setPresence({
     status: 'online'
   });
-  startScheduler(client);
+  // Only run the reminder scheduler on shard 0 to avoid duplicate work
+  if (!client.shard || client.shard.ids.includes(0)) {
+    startScheduler(client);
+  }
 });
 
 client.on(Events.InteractionCreate, async (i) => {
