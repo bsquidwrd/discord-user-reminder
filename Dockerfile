@@ -13,6 +13,8 @@ COPY package.json ./
 RUN npm i --omit=dev
 COPY --from=build /app/dist ./dist
 COPY .env.sample README.md app-manifest.json ./
+# Copy public assets for the monitoring UI
+COPY public ./public
 # Create the data directory and set up persistent volume for SQLite database
 RUN mkdir -p /data
 VOLUME ["/data"]
