@@ -16,7 +16,7 @@ A TypeScript/Node.js Discord app that works in **any Discord context**: DMs, ser
    SCHEDULER_BATCH_SIZE=50
    MONITOR_PORT=3000
    ```
-   Sharding is enabled; set `SHARD_COUNT` if you need a specific number of shards (default `auto`).
+   All shards run inside one process; set `SHARD_COUNT` if you need a specific number of shards (default `auto`).
    Adjust `SCHEDULER_INTERVAL_MS` and `SCHEDULER_BATCH_SIZE` to tune reminder throughput.
    `MONITOR_PORT` controls the web interface used to monitor shard status.
 

@@ -1,55 +1,39 @@
-import { ShardingManager } from 'discord.js';
+import { Status } from 'discord.js';
 import { CONFIG } from './config.js';
+import { client } from './bot.js';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import express from 'express';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const manager = new ShardingManager(path.join(__dirname, 'bot.js'), {
-  token: CONFIG.token,
-  totalShards: CONFIG.shardCount,
-});
-
-manager.on('shardCreate', shard => {
-  console.log(`Launched shard ${shard.id}`);
-  shard.on("death", () => {
-    console.log(`Shard ${shard.id} died, restarting`);
-    shard
-      .respawn()
-      .catch(err => console.error(`Failed to respawn shard ${shard.id}`, err));
-  });
-});
-
-// As PID 1 in the container, node ignores SIGTERM unless a handler is registered.
-for (const signal of ['SIGTERM', 'SIGINT'] as const) {
-  process.once(signal, () => {
-    console.log(`Received ${signal}, shutting down`);
-    manager.shards.forEach(shard => shard.kill());
-    process.exit(0);
-  });
-}
-
-await manager.spawn();
 
 const app = express();
 const publicPath = path.join(__dirname, '../public');
 app.use(express.static(publicPath));
 
-app.get('/api/status', async (_req, res) => {
-  try {
-    const shards = await manager.broadcastEval((client) => ({
-      id: client.shard?.ids[0] ?? 0,
-      ready: client.isReady(),
-      ping: client.ws.ping,
-      guilds: client.guilds.cache.size,
-      uptime: client.uptime ?? 0,
-    }));
-    res.json({ shards });
-  } catch (err) {
-    res.status(500).json({ error: 'failed to fetch shard status' });
-  }
+app.get('/api/status', (_req, res) => {
+  const shards = client.ws.shards.map(shard => ({
+    id: shard.id,
+    ready: shard.status === Status.Ready,
+    ping: shard.ping,
+    guilds: client.guilds.cache.filter(g => g.shardId === shard.id).size,
+    uptime: client.uptime ?? 0,
+  }));
+  res.json({ shards });
 });
 
-app.listen(CONFIG.monitorPort, () => {
+const server = app.listen(CONFIG.monitorPort, () => {
   console.log(`Monitoring interface on port ${CONFIG.monitorPort}`);
 });
+
+// As PID 1 in the container, node ignores SIGTERM unless a handler is registered.
+for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+  process.once(signal, async () => {
+    console.log(`Received ${signal}, shutting down`);
+    server.close();
+    await client.destroy();
+    process.exit(0);
+  });
+}
+
+await client.login(CONFIG.token);

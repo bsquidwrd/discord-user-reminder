@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Events, Partials, MessageFlags } from 'discord.js';
+import { Client, GatewayIntentBits, Events, Options, Partials, MessageFlags } from 'discord.js';
 import { CONFIG } from './config.js';
 import { handleRemindContext } from './commands/remindContext.js';
 import { handleRemindersSlash } from './commands/remindersSlash.js';
@@ -8,25 +8,36 @@ import { handleCustomModal } from './interactions/modals.js';
 import { startScheduler } from './scheduler.js';
 import { handleRemindSlash } from './commands/remindSlash.js';
 
-// Intents for both DMs and guild interactions
-const client = new Client({ 
+// Internal sharding keeps every shard in this one process, so the scheduler runs exactly once.
+const shards =
+  CONFIG.shardCount === 'auto'
+    ? { shards: 'auto' as const }
+    : { shards: [...Array(CONFIG.shardCount).keys()], shardCount: CONFIG.shardCount };
+
+// Nothing reads cached messages, and fetched users are only needed long enough to open a DM.
+export const client = new Client({
   intents: [
     GatewayIntentBits.DirectMessages,
     GatewayIntentBits.Guilds
-  ], 
-  partials: [Partials.Channel] 
+  ],
+  partials: [Partials.Channel],
+  ...shards,
+  makeCache: Options.cacheWithLimits({
+    ...Options.DefaultMakeCacheSettings,
+    MessageManager: 0,
+    UserManager: {
+      maxSize: 200,
+      keepOverLimit: user => user.id === user.client.user.id,
+    },
+  }),
 });
 
 client.once(Events.ClientReady, () => {
-  const shardInfo = client.shard ? `shard ${client.shard.ids.join(',')}` : 'single shard';
-  console.log(`Ready as ${client.user?.tag} (${shardInfo})`);
+  console.log(`Ready as ${client.user?.tag} (shards ${client.ws.shards.map(s => s.id).join(',')})`);
   client.user?.setPresence({
     status: 'online'
   });
-  // Only run the reminder scheduler on shard 0 to avoid duplicate work
-  if (!client.shard || client.shard.ids.includes(0)) {
-    startScheduler(client);
-  }
+  startScheduler(client);
 });
 
 client.on(Events.InteractionCreate, async (i) => {
@@ -59,5 +70,3 @@ client.on(Events.InteractionCreate, async (i) => {
     try { await i.reply({ content: 'Something went wrong. Try again.', flags: MessageFlags.Ephemeral }); } catch {}
   }
 });
-
-client.login(CONFIG.token);
