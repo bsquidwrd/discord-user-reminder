@@ -32,26 +32,26 @@ client.once(Events.ClientReady, () => {
 client.on(Events.InteractionCreate, async (i) => {
   try {
     if (i.isMessageContextMenuCommand() && i.commandName === 'Remind me') {
-      return handleRemindContext(i);
+      return await handleRemindContext(i);
     }
     if (i.isChatInputCommand()) {
-      if (i.commandName === 'remind') return handleRemindSlash(i);
-      if (i.commandName === 'reminders') return handleRemindersSlash(i);
-      if (i.commandName === 'timezone') return handleTimezoneSlash(i);
+      if (i.commandName === 'remind') return await handleRemindSlash(i);
+      if (i.commandName === 'reminders') return await handleRemindersSlash(i);
+      if (i.commandName === 'timezone') return await handleTimezoneSlash(i);
     }
     if (i.isButton()) {
       if (i.customId.startsWith('remind_preset:')) {
         const seconds = parseInt(i.customId.split(':')[1], 10);
-        return handlePresetButton(i, seconds);
+        return await handlePresetButton(i, seconds);
       }
       if (i.customId.startsWith('reminder_snooze:')) {
         const [, id, seconds] = i.customId.split(':');
-        return handleSnoozeButton(i, parseInt(id, 10), parseInt(seconds, 10));
+        return await handleSnoozeButton(i, parseInt(id, 10), parseInt(seconds, 10));
       }
-      if (i.customId === 'remind_custom') return openCustomModal(i);
+      if (i.customId === 'remind_custom') return await openCustomModal(i);
     }
     if (i.isModalSubmit() && i.customId === 'remind_custom_modal') {
-      return handleCustomModal(i);
+      return await handleCustomModal(i);
     }
   } catch (err) {
     console.error('Interaction error', err);

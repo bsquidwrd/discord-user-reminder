@@ -24,6 +24,11 @@ export const remindersSlash = new SlashCommandBuilder()
     .addIntegerOption(o => o.setName('id').setDescription('Reminder id').setRequired(true))
     .addStringOption(o => o.setName('when').setDescription('e.g., "tomorrow 9am"').setRequired(true)));
 
+// Same reply for missing and someone else's reminder, so IDs can't be probed.
+function notFound(i: ChatInputCommandInteraction, id: number) {
+  return i.reply({ content: `You have no reminder #${id}.`, flags: MessageFlags.Ephemeral });
+}
+
 export async function handleRemindersSlash(i: ChatInputCommandInteraction) {
   const sub = i.options.getSubcommand();
   if (sub === 'list') {
@@ -34,14 +39,14 @@ export async function handleRemindersSlash(i: ChatInputCommandInteraction) {
   }
   if (sub === 'cancel') {
     const id = i.options.getInteger('id', true);
-    cancelReminder(id);
+    if (!cancelReminder(id, i.user.id)) return notFound(i, id);
     return i.reply({ content: `Canceled reminder #${id}.`, flags: MessageFlags.Ephemeral });
   }
   if (sub === 'snooze') {
     const id = i.options.getInteger('id', true);
     const preset = parseInt(i.options.getString('preset', true), 10);
     const newEpoch = Math.floor(Date.now() / 1000) + preset;
-    rescheduleReminder(id, newEpoch);
+    if (!rescheduleReminder(id, i.user.id, newEpoch)) return notFound(i, id);
     return i.reply({ content: `Snoozed reminder #${id} to <t:${newEpoch}:F> (<t:${newEpoch}:R>).`, flags: MessageFlags.Ephemeral });
   }
   if (sub === 'reschedule') {
@@ -49,7 +54,7 @@ export async function handleRemindersSlash(i: ChatInputCommandInteraction) {
     const when = i.options.getString('when', true);
     const parsed = parseWhen(when, i.user.id);
     if (!parsed) return i.reply({ content: 'Could not parse time. Try like: `in 1h`, `tomorrow 9am`, `Aug 21 15:30`.', flags: MessageFlags.Ephemeral });
-    rescheduleReminder(id, parsed.epoch);
+    if (!rescheduleReminder(id, i.user.id, parsed.epoch)) return notFound(i, id);
     return i.reply({ content: `Rescheduled reminder #${id} to ${parsed.display}.`, flags: MessageFlags.Ephemeral });
   }
 }

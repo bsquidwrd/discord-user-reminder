@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonInteraction, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
+import { ActionRowBuilder, ButtonInteraction, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { DateTime } from 'luxon';
 import { insertReminder, rescheduleReminder } from '../db.js';
 import { resolveUserTz } from '../time.js';
@@ -36,7 +36,10 @@ export async function openCustomModal(i: ButtonInteraction) {
 export async function handleSnoozeButton(i: ButtonInteraction, reminderId: number, seconds: number) {
   const tz = resolveUserTz(i.user.id);
   const newEpoch = Math.floor(DateTime.now().setZone(tz).plus({ seconds }).toSeconds());
-  rescheduleReminder(reminderId, newEpoch);
+  if (!rescheduleReminder(reminderId, i.user.id, newEpoch)) {
+    await i.reply({ content: 'That reminder no longer exists.', flags: MessageFlags.Ephemeral });
+    return;
+  }
   await i.update({
     content: `⏰ Snoozed to <t:${newEpoch}:F> (<t:${newEpoch}:R>)`,
     components: [],

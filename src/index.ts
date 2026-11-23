@@ -20,6 +20,15 @@ manager.on('shardCreate', shard => {
   });
 });
 
+// As PID 1 in the container, node ignores SIGTERM unless a handler is registered.
+for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+  process.once(signal, () => {
+    console.log(`Received ${signal}, shutting down`);
+    manager.shards.forEach(shard => shard.kill());
+    process.exit(0);
+  });
+}
+
 await manager.spawn();
 
 const app = express();
