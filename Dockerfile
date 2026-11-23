@@ -21,4 +21,6 @@ VOLUME ["/data"]
 ENV DATABASE_URL="file:/data/reminders.db"
 ENV DEFAULT_TZ="UTC"
 EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.MONITOR_PORT||3000)+'/api/status').then(r=>r.json()).then(d=>process.exit(d.shards?.length&&d.shards.every(s=>s.ready)?0:1)).catch(()=>process.exit(1))"
 CMD ["npm","start"]
