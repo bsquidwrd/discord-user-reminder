@@ -1,8 +1,11 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, EmbedBuilder } from 'discord.js';
-import { getDueReminders, claimReminder, markReminderStatus } from './db.js';
+import { getDueReminders, claimReminder, markReminderStatus, releaseStuckReminders } from './db.js';
 import { CONFIG } from './config.js';
 
 export function startScheduler(client: Client) {
+  const released = releaseStuckReminders();
+  if (released > 0) console.log(`Requeued ${released} reminder(s) left mid-delivery`);
+
   let running = false;
 
   const run = async () => {

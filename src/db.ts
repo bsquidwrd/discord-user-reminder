@@ -37,8 +37,9 @@ CREATE TABLE IF NOT EXISTS reminders (
   error_message TEXT -- stores error details when delivery fails
 );
 
-CREATE INDEX IF NOT EXISTS idx_reminders_due ON reminders(due_at);
+CREATE INDEX IF NOT EXISTS idx_reminders_status_due ON reminders(status, due_at);
 CREATE INDEX IF NOT EXISTS idx_reminders_user ON reminders(user_id);
+DROP INDEX IF EXISTS idx_reminders_due;
 `);
 
 // Add error_message column if it doesn't exist (for existing databases)
@@ -62,13 +63,35 @@ export type Reminder = {
   error_message?: string | null;
 };
 
-export function insertReminder(data: Omit<Reminder, 'id' | 'created_at' | 'status'>) {
-  const stmt = db.prepare(`INSERT INTO reminders (
+const stmts = {
+  insert: db.prepare(`INSERT INTO reminders (
     user_id, source_guild_id, source_channel_id, source_message_id,
     message_link, message_excerpt, due_at, created_at, status
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'scheduled')`);
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'scheduled')`),
+  due: db.prepare(
+    `SELECT * FROM reminders WHERE status = 'scheduled' AND due_at <= ? ORDER BY due_at ASC LIMIT ?`
+  ),
+  claim: db.prepare(`UPDATE reminders SET status = 'sending' WHERE id = ? AND status = 'scheduled'`),
+  releaseStuck: db.prepare(`UPDATE reminders SET status = 'scheduled' WHERE status = 'sending'`),
+  markWithError: db.prepare(`UPDATE reminders SET status = ?, error_message = ? WHERE id = ?`),
+  mark: db.prepare(`UPDATE reminders SET status = ?, error_message = NULL WHERE id = ?`),
+  delete: db.prepare(`DELETE FROM reminders WHERE id = ?`),
+  userReminders: db.prepare(
+    `SELECT * FROM reminders WHERE user_id = ? AND status = 'scheduled' ORDER BY due_at ASC LIMIT ?`
+  ),
+  cancel: db.prepare(`UPDATE reminders SET status = 'canceled' WHERE id = ? AND user_id = ?`),
+  reschedule: db.prepare(
+    `UPDATE reminders SET due_at = ?, status = 'scheduled' WHERE id = ? AND user_id = ?`
+  ),
+  getTimezone: db.prepare(`SELECT timezone FROM user_settings WHERE user_id = ?`),
+  setTimezone: db.prepare(
+    `INSERT INTO user_settings(user_id, timezone) VALUES(?, ?) ON CONFLICT(user_id) DO UPDATE SET timezone=excluded.timezone`
+  ),
+};
+
+export function insertReminder(data: Omit<Reminder, 'id' | 'created_at' | 'status'>) {
   const now = Math.floor(Date.now() / 1000);
-  const info = stmt.run(
+  const info = stmts.insert.run(
     data.user_id,
     data.source_guild_id ?? null,
     data.source_channel_id ?? null,
@@ -82,50 +105,47 @@ export function insertReminder(data: Omit<Reminder, 'id' | 'created_at' | 'statu
 }
 
 export function getDueReminders(nowEpoch: number, limit: number): Reminder[] {
-  const rows = db
-    .prepare(
-      `SELECT * FROM reminders WHERE status = 'scheduled' AND due_at <= ? ORDER BY due_at ASC LIMIT ?`
-    )
-    .all(nowEpoch, limit);
-  return rows as Reminder[];
+  return stmts.due.all(nowEpoch, limit) as Reminder[];
 }
 
 export function claimReminder(id: number): boolean {
-  const res = db.prepare(`UPDATE reminders SET status='sending' WHERE id=? AND status='scheduled'`).run(id);
-  return res.changes === 1;
+  return stmts.claim.run(id).changes === 1;
+}
+
+// A crash between claim and delivery would otherwise leave the reminder unsendable forever.
+export function releaseStuckReminders(): number {
+  return stmts.releaseStuck.run().changes;
 }
 
 export function markReminderStatus(id: number, status: Reminder['status'], errorMessage?: string) {
   if (errorMessage) {
-    db.prepare(`UPDATE reminders SET status = ?, error_message = ? WHERE id = ?`).run(status, errorMessage, id);
+    stmts.markWithError.run(status, errorMessage, id);
   } else {
-    db.prepare(`UPDATE reminders SET status = ?, error_message = NULL WHERE id = ?`).run(status, id);
+    stmts.mark.run(status, id);
   }
 }
 
 export function deleteReminder(id: number) {
-  db.prepare(`DELETE FROM reminders WHERE id = ?`).run(id);
+  stmts.delete.run(id);
 }
 
 export function getUserReminders(userId: string, opts?: { limit?: number }) {
-  return db.prepare(
-    `SELECT * FROM reminders WHERE user_id = ? AND status = 'scheduled' ORDER BY due_at ASC LIMIT ?`
-  ).all(userId, opts?.limit ?? 25) as Reminder[];
+  return stmts.userReminders.all(userId, opts?.limit ?? 25) as Reminder[];
 }
 
-export function cancelReminder(id: number) {
-  db.prepare(`UPDATE reminders SET status = 'canceled' WHERE id = ?`).run(id);
+export function cancelReminder(id: number, userId: string): boolean {
+  return stmts.cancel.run(id, userId).changes === 1;
 }
 
-export function rescheduleReminder(id: number, newEpoch: number) {
-  db.prepare(`UPDATE reminders SET due_at = ?, status = 'scheduled' WHERE id = ?`).run(newEpoch, id);
+export function rescheduleReminder(id: number, userId: string, newEpoch: number): boolean {
+  return stmts.reschedule.run(newEpoch, id, userId).changes === 1;
 }
 
 export function getUserTimezone(userId: string): string | null {
-  const row = db.prepare(`SELECT timezone FROM user_settings WHERE user_id = ?`).get(userId) as { timezone?: string } | undefined;
+  const row = stmts.getTimezone.get(userId) as { timezone?: string } | undefined;
   return row?.timezone ?? null;
 }
 
 export function setUserTimezone(userId: string, tz: string) {
-  db.prepare(`INSERT INTO user_settings(user_id, timezone) VALUES(?, ?) ON CONFLICT(user_id) DO UPDATE SET timezone=excluded.timezone`).run(userId, tz);
+  stmts.setTimezone.run(userId, tz);
 }
